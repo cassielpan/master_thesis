@@ -1,0 +1,1655 @@
+---
+title: "The relationship between altruism and choice under risk over time"
+author: "Zixin"
+date: "`r format(Sys.Date(), '%d/%m/%y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE)
+if(!require("dplyr")) {install.packages("dplyr"); library("dplyr")}
+if(!require("ggplot2")) {install.packages("ggplot2"); library("ggplot2")}
+if(!require("tidyverse")) {install.packages("tidyverse"); library("tidyverse")}
+if(!require("sandwich")) {install.packages("sandwich"); library("sandwich")}
+if(!require("stargazer")) {install.packages("stargazer"); library("stargazer")}
+if(!require("AER")) {install.packages("AER"); library("AER")}
+if(!require("haven")) {install.packages("haven"); library("haven")}
+```
+
+```{r echo=T, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+output <- "Outputs/main_2.csv"
+
+#load the clean data
+dataSOEP <- read.csv(file=output)
+#calculate age according to survey year (age that year)
+dataSOEP_ageclean <- dataSOEP %>% 
+  mutate(age = syear- birth_year,
+         age2 = age^2,
+         risk_personal2 = risk_personal^2,
+         s_risk_personal2 = s_risk_personal^2,
+         patience_2013_2 = patience_2013^2,
+         patience_2018_2 = patience_2018^2,
+         s_patience_2013_2 = s_patience_2013^2,
+         s_patience_2018_2 = s_patience_2018^2)
+dataSOEP_ageclean$money_donated <- ifelse(dataSOEP_ageclean$money_subscribe==1, 1, 0)
+dataSOEP_ageclean$money_donated_h <- ifelse(dataSOEP_ageclean$money_donated==1, dataSOEP_ageclean$money_subscribe_amount, 0)
+
+dataSOEP_ageclean$age_divided <- dataSOEP_ageclean$age/10
+dataSOEP_ageclean$age2_divided <- dataSOEP_ageclean$age2/100
+
+dataSOEP_ageclean$blood_donation_fiveyears[dataSOEP_ageclean$blood_donation_fiveyears == 2 ] <- 0
+dataSOEP_ageclean$medicalreason_no_donation[dataSOEP_ageclean$medicalreason_no_donation == 2 ] <- 0
+
+dataSOEP_ageclean <- dataSOEP_ageclean %>%
+  mutate(blood_donation_fiveyears_exclu = ifelse(blood_donation_fiveyears == 0 & medicalreason_no_donation ==1, NA, blood_donation_fiveyears),
+         volunteer_work_dummy = ifelse(volunteer_work %in% c(1,2,3,4,7,8), 1, volunteer_work))
+dataSOEP_ageclean$volunteer_work_dummy[dataSOEP_ageclean$volunteer_work_dummy == 5| dataSOEP_ageclean$volunteer_work_dummy == 6] <- 0
+
+
+```
+
+## Summary of Statistics 
+
+## Observations of risk questions over the years{.tabset}
+
+```{r message=FALSE, warning=FALSE}
+#Grouping data by years and getting observation numbers
+dataSOEP_groupby_year_risk <- dataSOEP %>%
+ group_by(syear)%>%
+ mutate(risk_drive_obs = length(risk_drive[!is.na(risk_drive)]),
+        risk_financial_obs = length(risk_financial[!is.na(risk_financial)]),
+        risk_leisure_sport_obs = 
+          length(risk_leisure_sport[!is.na(risk_leisure_sport)]),
+        risk_job_obs =length(risk_job[!is.na(risk_job)]),
+        risk_health_obs = length(risk_health[!is.na(risk_health)]),
+        risk_trust_obs = length(risk_trust[!is.na(risk_trust)]),
+        risk_after_lottery_obs = 
+          length(risk_after_lottery[!is.na(risk_after_lottery)]),
+        risk_personal_obs = length(risk_personal[!is.na(risk_personal)]))
+```
+
+### driving
+```{r Plot 1, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, y=risk_drive_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_drive_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Risks While Driving") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### financial
+```{r Plot 2, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, y=risk_financial_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_financial_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Risks In Financial Matters") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### leisure_sport
+```{r Plot 3, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, 
+            aes(x=syear, y=risk_leisure_sport_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_leisure_sport_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Risks In Leisure And Sports") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### job
+```{r Plot 4, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, y=risk_job_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_job_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Risks In Occupation") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### health
+```{r Plot 5, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, y=risk_health_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_health_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Health Risks") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### trust
+```{r Plot 6, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, y=risk_trust_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_trust_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Willingness To Take Risks In Trusting Other People") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### personal
+```{r Plot 7, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_risk, aes(x=syear, 
+                                              y=risk_personal_obs)) +
+   geom_segment( aes(x=syear, xend=syear, y=0, yend=risk_personal_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Personal Willingness To Take Risks") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+## Observations of altruisic behaviors questions over the years{.tabset}
+```{r message=FALSE, warning=FALSE}
+#Grouping data by years and getting observation numbers
+dataSOEP_groupby_year_altri <- dataSOEP %>%
+ group_by(syear)%>%
+ mutate(money_subscribe_obs = length(money_subscribe[!is.na(money_subscribe)]),
+        money_subscribe_amount_obs = 
+          length(money_subscribe_amount[!is.na(money_subscribe_amount)]),
+        blood_donation_fiveyears_obs = 
+          length(blood_donation_fiveyears[!is.na(blood_donation_fiveyears)]),
+        blood_donation_tenyears_obs =
+          length(blood_donation_tenyears[!is.na(blood_donation_tenyears)]),
+        blood_donation_lastyear_obs = 
+          length(blood_donation_lastyear[!is.na(blood_donation_lastyear)]),
+        medicalreason_no_donation_obs = 
+          length(medicalreason_no_donation[!is.na(medicalreason_no_donation)]),
+        help_friends_obs = length(help_friends[!is.na(help_friends)]),
+        volunteer_work_obs = 
+          length(volunteer_work[!is.na(volunteer_work)]))
+```
+
+### money
+```{r Plot 8, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=money_subscribe_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, yend=money_subscribe_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Subscribed money") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### blood_donation_tenyears
+```{r Plot 9, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=blood_donation_tenyears_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, 
+                    yend=blood_donation_tenyears_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Blood donation last 10 years") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### blood_donation_fiveyears
+```{r Plot 10, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=blood_donation_fiveyears_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, 
+                    yend=blood_donation_fiveyears_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Blood donation last 5 years") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### blood_donation_lastyears
+```{r Plot 11, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=blood_donation_lastyear_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, 
+                    yend=blood_donation_lastyear_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Blood donation last year") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### help_friends
+```{r Plot 12, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=help_friends_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, 
+                    yend=help_friends_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Helping with friend, relative") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+### volunteer_work
+```{r Plot 13, results='asis', message=FALSE, warning=FALSE}
+
+x <- ggplot(data = dataSOEP_groupby_year_altri, aes(x=syear, 
+                                              y=volunteer_work_obs)) +
+   geom_segment(aes(x=syear, xend=syear, y=0, 
+                    yend=volunteer_work_obs), color="skyblue") +
+   geom_point(color="blue") +
+   scale_x_continuous(breaks=seq(1984, 2020, 1)) +
+   ylab("Observations") +
+   xlab("Years")+
+   labs(title="Volunteer work") +
+   theme_light() +
+   theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+## Summary of Age Statistics {.tabset}
+```{r message=FALSE, warning=FALSE}
+#create personal risk attitudes by year
+data_2004 <- dataSOEP_ageclean %>%
+  subset(syear==2004 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2006 <- dataSOEP_ageclean %>%
+  subset(syear==2006 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2008 <- dataSOEP_ageclean %>%
+  subset(syear==2008 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2009 <- dataSOEP_ageclean %>%
+  subset(syear==2009 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2010 <- dataSOEP_ageclean %>%
+  subset(syear==2010 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal"))
+data_2011 <- dataSOEP_ageclean %>%
+  subset(syear==2011 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2012 <- dataSOEP_ageclean %>%
+  subset(syear==2012 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid","risk_personal"))
+data_2013 <- dataSOEP_ageclean %>%
+  subset(syear==2013 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2014 <- dataSOEP_ageclean %>%
+  subset(syear==2014 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2015 <- dataSOEP_ageclean %>%
+  subset(syear==2015 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2016 <- dataSOEP_ageclean %>%
+  subset(syear==2016 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid","risk_personal")) 
+data_2017 <- dataSOEP_ageclean %>%
+  subset(syear==2017 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2018 <- dataSOEP_ageclean %>%
+  subset(syear==2018 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2019 <- dataSOEP_ageclean %>%
+  subset(syear==2019 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+data_2020 <- dataSOEP_ageclean %>%
+  subset(syear==2020 & is.na(risk_personal)==FALSE) %>%
+  select(c("pid", "risk_personal")) 
+
+#get the observations which has been interviewed for each year
+data_risk_personal <- purrr::reduce(list(data_2004, data_2006, data_2008, 
+                                         data_2009, data_2010, data_2011, 
+                                         data_2012, data_2013, data_2014, 
+                                         data_2015, data_2016, data_2017, 
+                                         data_2018, data_2019, data_2020),
+                                    inner_join, by = "pid") %>%
+  select(c("pid"))
+#get a subset from the dataSOEP
+data_risk_personal_new <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "syear", "female",
+                                            "age", "risk_personal"))
+#filter the observations which has been interviewed for each year
+data_risk_personal_new <- subset(data_risk_personal_new, 
+                                 pid %in% data_risk_personal$pid)
+data_risk_personal_new <- na.omit(data_risk_personal_new)
+```
+
+```{r message=FALSE, warning=FALSE}
+#group all younger and older people
+data_risk_personal_new$age[data_risk_personal_new$age >=95] <- 95
+data_risk_personal_new$age[data_risk_personal_new$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk <- data_risk_personal_new %>%
+  group_by(age) %>%
+  summarise(mean_risk_personal=mean(risk_personal),
+            N    = length(risk_personal),
+            sd   = sd(risk_personal),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_sex <- data_risk_personal_new %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_personal=mean(risk_personal),
+            N    = length(risk_personal),
+            sd   = sd(risk_personal),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+### risk_small
+```{r plot14, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk, aes(x=age, y=mean_risk_personal)) + 
+  geom_errorbar(aes(ymin=mean_risk_personal-se, ymax=mean_risk_personal+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Personal Willingness To Take Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+```{r plot14.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_sex, aes(x=age, y=mean_risk_personal, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_personal-se, ymax=mean_risk_personal+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Personal Willingness To Take Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+
+### risk_all
+```{r message=FALSE, warning=FALSE}
+data_risk_personal_all <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_personal")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_personal_all$age[data_risk_personal_all$age >=95] <- 95
+data_risk_personal_all$age[data_risk_personal_all$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_all <-   data_risk_personal_all %>%
+  group_by(age) %>%
+  summarise(mean_risk_personal=mean(risk_personal),
+            N    = length(risk_personal),
+            sd   = sd(risk_personal),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_all_sex <- data_risk_personal_all %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_personal=mean(risk_personal),
+            N    = length(risk_personal),
+            sd   = sd(risk_personal),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_all, aes(x=age, y=mean_risk_personal)) + 
+  geom_errorbar(aes(ymin=mean_risk_personal-se, ymax=mean_risk_personal+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Personal Willingness To Take Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+```{r plot15.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_all_sex, aes(x=age, y=mean_risk_personal, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_personal-se, ymax=mean_risk_personal+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Personal Willingness To Take Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+### risk_financial
+```{r message=FALSE, warning=FALSE}
+data_risk_financial <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_financial")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_financial$age[data_risk_financial$age >=95] <- 95
+data_risk_financial$age[data_risk_financial$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_fi <- data_risk_financial %>%
+  group_by(age) %>%
+  summarise(mean_risk_fi=mean(risk_financial),
+            N    = length(risk_financial),
+            sd   = sd(risk_financial),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_fi_sex <- data_risk_financial %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_fi=mean(risk_financial),
+            N    = length(risk_financial),
+            sd   = sd(risk_financial),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+```
+
+```{r plot15a, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_fi, aes(x=age, y=mean_risk_fi)) + 
+  geom_errorbar(aes(ymin=mean_risk_fi-se, ymax=mean_risk_fi+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Risks In Financial Matters") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Finance")
+x
+```
+
+```{r plot15a.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_fi_sex, aes(x=age, y=mean_risk_fi, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_fi-se, ymax=mean_risk_fi+se)) +
+  geom_line() +
+  geom_point() +
+  theme_light() +
+  ylab("Willingness To Take Risks In Financial Matters") +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Finance")
+x
+```
+
+### risk_health
+```{r message=FALSE, warning=FALSE}
+data_risk_health <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_health")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_health$age[data_risk_health$age >=95] <- 95
+data_risk_health$age[data_risk_health$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_heal <- data_risk_health %>%
+  group_by(age) %>%
+  summarise(mean_risk_heal=mean(risk_health),
+            N    = length(risk_health),
+            sd   = sd(risk_health),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_heal_sex <- data_risk_health %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_heal=mean(risk_health),
+            N    = length(risk_health),
+            sd   = sd(risk_health),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15b, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_heal, aes(x=age, y=mean_risk_heal)) + 
+  geom_errorbar(aes(ymin=mean_risk_heal-se, ymax=mean_risk_heal+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Health Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Health")
+x
+```
+
+```{r plot15b.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_heal_sex, aes(x=age, y=mean_risk_heal, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_heal-se, ymax=mean_risk_heal+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Willingness To Take Health Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Health")
+x
+```
+
+### risk_drive
+```{r message=FALSE, warning=FALSE}
+data_risk_drive <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_drive")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_drive$age[data_risk_drive$age >=95] <- 95
+data_risk_drive$age[data_risk_drive$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_dri <- data_risk_drive %>%
+  group_by(age) %>%
+  summarise(mean_risk_drive=mean(risk_drive),
+            N    = length(risk_drive),
+            sd   = sd(risk_drive),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_drive_sex <- data_risk_drive %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_drive=mean(risk_drive),
+            N    = length(risk_drive),
+            sd   = sd(risk_drive),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15c, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_dri, aes(x=age, y=mean_risk_drive)) + 
+  geom_errorbar(aes(ymin=mean_risk_drive-se, ymax=mean_risk_drive+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Driving Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Driving")
+x
+```
+
+```{r plot15c.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_drive_sex, aes(x=age, y=mean_risk_drive, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_drive-se, ymax=mean_risk_drive+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Willingness To Take Health Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Driving")
+x
+```
+
+### risk_leisure_sport
+```{r message=FALSE, warning=FALSE}
+data_risk_lei_sport <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_leisure_sport")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_lei_sport$age[data_risk_lei_sport$age >=95] <- 95
+data_risk_lei_sport$age[data_risk_lei_sport$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_lei_spo <- data_risk_lei_sport %>%
+  group_by(age) %>%
+  summarise(mean_risk_lei_sport=mean(risk_leisure_sport),
+            N    = length(risk_leisure_sport),
+            sd   = sd(risk_leisure_sport),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_lei_spo_sex <- data_risk_lei_sport %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_lei_sport=mean(risk_leisure_sport),
+            N    = length(risk_leisure_sport),
+            sd   = sd(risk_leisure_sport),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15d, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_lei_spo, aes(x=age, y=mean_risk_lei_sport)) + 
+  geom_errorbar(aes(ymin=mean_risk_lei_sport-se, ymax=mean_risk_lei_sport+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Leisure and Sport Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Leisure and Sport")
+x
+```
+
+```{r plot15d.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_lei_spo_sex, aes(x=age, y=mean_risk_lei_sport, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_lei_sport-se, ymax=mean_risk_lei_sport+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Willingness To Take Leisure and Sport Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))+
+  labs(title= "Leisure and Sport")
+x
+```
+
+### risk_job
+```{r message=FALSE, warning=FALSE}
+data_risk_job <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_job")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_job$age[data_risk_job$age >=95] <- 95
+data_risk_job$age[data_risk_job$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_jo <- data_risk_job %>%
+  group_by(age) %>%
+  summarise(mean_risk_job=mean(risk_job),
+            N    = length(risk_job),
+            sd   = sd(risk_job),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_job_sex <- data_risk_job %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_job=mean(risk_job),
+            N    = length(risk_job),
+            sd   = sd(risk_job),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15e, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_jo, aes(x=age, y=mean_risk_job)) + 
+  geom_errorbar(aes(ymin=mean_risk_job-se, ymax=mean_risk_job+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Job Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Job")
+x
+```
+
+```{r plot15e.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_job_sex, aes(x=age, y=mean_risk_job, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_job-se, ymax=mean_risk_job+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Willingness To Take Job Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))+
+  labs(title= "Job")
+x
+```
+
+### risk_trust
+```{r message=FALSE, warning=FALSE}
+data_risk_trust <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","female", "risk_trust")) %>%
+  na.omit()
+#group all younger and older people
+data_risk_trust$age[data_risk_trust$age >=95] <- 95
+data_risk_trust$age[data_risk_trust$age <=18] <- 18
+#sort by age and calculate mean 
+data_risk_tru <- data_risk_trust %>%
+  group_by(age) %>%
+  summarise(mean_risk_trust=mean(risk_trust),
+            N    = length(risk_trust),
+            sd   = sd(risk_trust),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+data_risk_trust_sex <- data_risk_trust %>%
+  group_by(age, female) %>%
+  summarise(mean_risk_trust=mean(risk_trust),
+            N    = length(risk_trust),
+            sd   = sd(risk_trust),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r plot15f, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=data_risk_tru, aes(x=age, y=mean_risk_trust)) + 
+  geom_errorbar(aes(ymin=mean_risk_trust-se, ymax=mean_risk_trust+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Willingness To Take Trust Risks") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  labs(title= "Trust")
+x
+```
+
+```{r plot15f.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = data_risk_trust_sex, aes(x=age, y=mean_risk_trust, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_risk_trust-se, ymax=mean_risk_trust+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Willingness To Take Trust Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))+
+  labs(title= "Trust")
+x
+```
+
+### 10000 Euros
+```{r message=FALSE, warning=FALSE}
+dataSOEP_no_nan_giveaway <- subset(dataSOEP_ageclean, giveaway>=0)
+#group all people older than 95
+dataSOEP_no_nan_giveaway$age[dataSOEP_no_nan_giveaway$age >=95] <- 95
+dataSOEP_no_nan_giveaway$age[dataSOEP_no_nan_giveaway$age <=18] <- 18
+#sort by age and calculate mean of "giveaway"
+sum_SOEP <- dataSOEP_no_nan_giveaway %>%
+  group_by(age) %>%
+  summarise(mean_giveaway=mean(giveaway),
+            N    = length(giveaway),
+            sd   = sd(giveaway),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+sum_SOEP_sex <- dataSOEP_no_nan_giveaway %>%
+  group_by(age, female) %>%
+  summarise(mean_giveaway=mean(giveaway),
+            N    = length(giveaway),
+            sd   = sd(giveaway),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+ 
+```
+
+```{r plot16, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=sum_SOEP, aes(x=age, y=mean_giveaway)) + 
+  geom_errorbar(aes(ymin=mean_giveaway-se, ymax=mean_giveaway+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Amount of 10,000 Euros to give away") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+```{r plot16.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = sum_SOEP_sex, aes(x=age, y=mean_giveaway, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_giveaway-se, ymax=mean_giveaway+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Amount of 10,000 Euros to give away") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+### Life Goals "Being there for others" Question
+```{r, warning=FALSE, message=FALSE}
+#drop missing lifegoal_help_r
+dataSOEP_no_nan_lifegoal_help<- drop_na(dataSOEP_ageclean, lifegoal_help_r) 
+#group all younger and older people
+dataSOEP_no_nan_lifegoal_help$age[dataSOEP_no_nan_lifegoal_help$age >=95] <- 95
+dataSOEP_no_nan_lifegoal_help$age[dataSOEP_no_nan_lifegoal_help$age <=18] <- 18
+#sort by age and calculate mean of "lifegoal_help_r"
+sum_SOEP2 <- dataSOEP_no_nan_lifegoal_help %>%
+  group_by(age) %>%
+  summarise(mean_lifegoal_help = mean(lifegoal_help_r),
+            N    = length(lifegoal_help_r),
+            sd   = sd(lifegoal_help_r),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+sum_SOEP2_sex <- dataSOEP_no_nan_lifegoal_help %>%
+  group_by(age, female) %>%
+  summarise(mean_lifegoal_help = mean(lifegoal_help_r),
+            N    = length(lifegoal_help_r),
+            sd   = sd(lifegoal_help_r),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+ 
+```
+
+```{r Plot 17, message=FALSE, warning=FALSE, results='asis'}
+x <- ggplot(data=sum_SOEP2, aes(x=age, y=mean_lifegoal_help)) + 
+  geom_errorbar(aes(ymin=mean_lifegoal_help-se, ymax=mean_lifegoal_help+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Importance of Being There for Others") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+```{r plot17.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = sum_SOEP2_sex, aes(x=age, y=mean_lifegoal_help, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_lifegoal_help-se, ymax=mean_lifegoal_help+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Importance of Being There for Others") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+### Life Goals "Being politically, socially active" Question
+```{r, warning=FALSE, message=FALSE}
+#drop missing lifegoal_so_po_r
+dataSOEP_no_nan_lifegoal_so_po<- drop_na(dataSOEP_ageclean, lifegoal_so_po_r) 
+#group all younger and older people
+dataSOEP_no_nan_lifegoal_so_po$age[dataSOEP_no_nan_lifegoal_so_po$age >=95] <- 95
+dataSOEP_no_nan_lifegoal_so_po$age[dataSOEP_no_nan_lifegoal_so_po$age <=18] <- 18
+#sort by age and calculate mean of "lifegoal_help_r"
+sum_SOEP3 <- dataSOEP_no_nan_lifegoal_so_po %>%
+  group_by(age) %>%
+  summarise(mean_lifegoal_so_po = mean(lifegoal_so_po_r),
+            N    = length(lifegoal_so_po_r),
+            sd   = sd(lifegoal_so_po_r),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+sum_SOEP3_sex <- dataSOEP_no_nan_lifegoal_so_po %>%
+  group_by(age, female) %>%
+  summarise(mean_lifegoal_so_po = mean(lifegoal_so_po_r),
+            N    = length(lifegoal_so_po_r),
+            sd   = sd(lifegoal_so_po_r),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+```
+
+```{r Plot 18, warning=FALSE, message=FALSE, results='asis'}
+x <- ggplot(data=sum_SOEP3, aes(x=age, y=mean_lifegoal_so_po)) + 
+  geom_errorbar(aes(ymin=mean_lifegoal_so_po-se, ymax=mean_lifegoal_so_po+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Importance of Being Politically and Socially Active") +
+  theme_light() +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95)) +
+  theme(axis.text.x = element_text(angle = 90))
+x
+```
+
+```{r plot18.1, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data = sum_SOEP3_sex, aes(x=age, y=mean_lifegoal_so_po, 
+                                  color=factor(female), group = factor(female))) +
+  geom_errorbar(aes(ymin=mean_lifegoal_so_po-se, ymax=mean_lifegoal_so_po+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Importance of Being Politically and Socially Active") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_discrete("Age", limits=c(20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95))
+x
+```
+
+
+## Behaviors development over time and risk tolerance {.tabset}
+```{r, warning=FALSE, message=FALSE}
+behaviors_money_a <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","money_donated")) %>%
+  mutate(age = ifelse(age >=95, 95, age),
+         age = ifelse(age <=18, 18, age)) %>%
+  na.omit() %>%
+  group_by(age) %>%
+  summarise(mean_money=mean(money_donated),
+            .groups = 'drop')
+behaviors_money_r <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "risk_personal","money_donated")) %>%
+  na.omit() %>%
+  group_by(risk_personal) %>%
+  summarise(mean_money=mean(money_donated),
+            .groups = 'drop')
+
+behaviors_blood_donat_a <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age", 
+                                            "blood_donation_fiveyears_exclu")) %>%
+  mutate(age = ifelse(age >=95, 95, age),
+         age = ifelse(age <=18, 18, age)) %>%
+  na.omit() %>%
+  group_by(age) %>%
+  summarise(mean_blood_donation_fiveyears=mean(blood_donation_fiveyears_exclu),
+            .groups = 'drop')
+
+behaviors_blood_donat_r <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "risk_personal", 
+                                            "blood_donation_fiveyears_exclu")) %>%
+  na.omit() %>%
+  group_by(risk_personal) %>%
+  summarise(mean_blood_donation_fiveyears=mean(blood_donation_fiveyears_exclu),
+            .groups = 'drop')
+
+behaviors_volunteer_a <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "age","volunteer_work_dummy")) %>%
+  mutate(age = ifelse(age >=95, 95, age),
+         age = ifelse(age <=18, 18, age)) %>%
+  na.omit() %>%
+  group_by(age) %>%
+  summarise(mean_volunteer_work=mean(volunteer_work_dummy),
+            .groups = 'drop')
+
+behaviors_volunteer_r <- subset(dataSOEP_ageclean, 
+                                 select = c("pid", "risk_personal",
+                                            "volunteer_work_dummy")) %>%
+  na.omit() %>%
+  group_by(risk_personal) %>%
+  summarise(mean_volunteer_work=mean(volunteer_work_dummy),
+            .groups = 'drop')
+```
+### Age
+```{r plot19, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_money_a, aes(x=age, y=mean_money)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Age") +
+  scale_x_continuous(breaks=seq(min(behaviors_money_a$age), max(behaviors_money_a$age), 3))+
+  theme_light() +
+  labs(title= "Money Donation")
+x
+```
+
+```{r plot20, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_blood_donat_a, aes(x=age, y=mean_blood_donation_fiveyears)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Age") +
+  scale_x_continuous(breaks=seq(min(behaviors_blood_donat_a$age), max(behaviors_blood_donat_a$age), 3))+
+  theme_light() + 
+  labs(title= "Blood Donation")
+x
+```
+
+```{r plot21, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_volunteer_a, aes(x=age, y=mean_volunteer_work)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Age") +
+  scale_x_continuous(breaks=seq(min(behaviors_volunteer_a$age), max(behaviors_volunteer_a$age), 3))+
+  theme_light() +
+  labs(title= "Volunteer Work")
+x
+```
+
+### risk
+```{r plot22, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_money_r, aes(x=risk_personal, y=mean_money)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Personal Risk") +
+  theme_light() + 
+  labs(title= "Money Donation")
+x
+```
+
+```{r plot23, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_blood_donat_r, aes(x=risk_personal, y=mean_blood_donation_fiveyears)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Personal Risk") +
+  theme_light() +
+  labs(title= "Blood Donation")
+x
+```
+
+```{r plot24, results='asis', message=FALSE, warning=FALSE}
+x <- ggplot(data=behaviors_volunteer_r, aes(x=risk_personal, y=mean_volunteer_work)) +
+  geom_line() +
+  ylab("Ratio") +
+  xlab("Personal Risk") +
+  theme_light() + 
+  labs(title= "Volunteer Work")
+x
+```
+
+
+## Regressions with Altruistic Behaviors {.tabset}
+
+### subscribed_money
+```{r Table 1, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionA <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2020,
+                         select= c("money_donated",  "risk_personal", "patience_2018",                                    "patience_2018_2", "risk_personal2", "age",
+                                   "age2", "female", "education", "health_r"))
+cross_sectionA <- na.omit(cross_sectionA)
+
+reg1 <- lm(money_donated  ~ age + age2 + female + education + health_r, data= cross_sectionA)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(money_donated ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2, data= cross_sectionA)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(money_donated ~ age + age2 + female + education + health_r + patience_2018  + patience_2018_2, data= cross_sectionA)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(money_donated  ~ age + age2 + female + education + health_r +  risk_personal  + risk_personal2 +patience_2018  + patience_2018_2, data= cross_sectionA)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3, reg4, type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Subscribing money"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years", "Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+```{r Table 1a, results ='asis', message=FALSE, warning=FALSE}
+reg1a <- glm(money_donated  ~ age + age2 + female + education + health_r, family = binomial(link = "probit"), data= cross_sectionA)
+cov_1a <- vcovHC(reg1a)
+se_1a <- sqrt(diag(cov_1a))
+
+reg2a <- glm(money_donated ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2,family = binomial(link = "probit"),  data= cross_sectionA)
+cov_2a <- vcovHC(reg2a)
+se_2a <- sqrt(diag(cov_2a))
+
+reg3a <- glm(money_donated ~ age + age2 + female + education + health_r + patience_2018  + patience_2018_2,family = binomial(link = "probit"),  data= cross_sectionA)
+cov_3a <- vcovHC(reg3a)
+se_3a <- sqrt(diag(cov_3a))
+
+reg4a <- glm(money_donated  ~ age + age2 + female + education + health_r +  risk_personal  + risk_personal2 +patience_2018  + patience_2018_2, family = binomial(link = "probit"), data= cross_sectionA)
+cov_4a <- vcovHC(reg4a)
+se_4a <- sqrt(diag(cov_4a))
+
+stargazer(reg1a, reg2a, reg3a, reg4a, type="html",
+          se=list(se_1a, se_2a, se_3a, se_4a), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Subscribing money"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years", "Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+
+```{r Table 1.1, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionAA <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2020,
+                         select= c("money_donated_h",  "risk_personal", 
+                                   "patience_2018", "patience_2018_2", 
+                                   "risk_personal2", "age",
+                                   "age2", "female", "education", "health_r"))
+cross_sectionAA <- na.omit(cross_sectionAA)
+
+reg1 <- tobit(money_donated_h  ~ age + age2 + female + education + health_r, data= cross_sectionAA)
+
+reg2 <- tobit(money_donated_h ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2, data= cross_sectionAA)
+
+reg3 <- tobit(money_donated_h ~ age + age2 + female + education + health_r + patience_2018  + patience_2018_2, data= cross_sectionAA)
+
+reg4 <- tobit(money_donated_h  ~ age + age2 + risk_personal  + risk_personal2 +patience_2018  + patience_2018_2+  female + education + health_r, data= cross_sectionAA)
+
+stargazer(reg1, reg2, reg3, reg4, type="html",column.separate = c(1,1,1,1),
+          dep.var.labels= c("Subscribing money (harmonized)"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years","Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+### blood donation
+```{r Table 2, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionB <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2020,
+                         select= c("blood_donation_fiveyears_exclu", "risk_personal", 
+                                   "patience_2018", "patience_2018_2","risk_personal2",
+                                   "age",  "age2", "female", "education",
+                                   "health_r", "pid"))
+cross_sectionB <- na.omit(cross_sectionB)
+
+reg1 <- lm(blood_donation_fiveyears_exclu  ~ age + age2 + female + education + health_r,  data= cross_sectionB)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(blood_donation_fiveyears_exclu ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2, data= cross_sectionB)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(blood_donation_fiveyears_exclu ~ age + age2 + female + education + health_r+ patience_2018  + patience_2018_2, data= cross_sectionB)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(blood_donation_fiveyears_exclu  ~ age + age2 + risk_personal  + risk_personal2 +patience_2018  + patience_2018_2+  female + education + health_r, data= cross_sectionB)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3, reg4, type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Blood Donation"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years","Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+```{r Table 2a, results ='asis', message=FALSE, warning=FALSE}
+reg1a <- glm(blood_donation_fiveyears_exclu  ~ age + age2 + female + education + health_r, family = binomial(link = "logit"), data= cross_sectionB)
+cov_1a <- vcovHC(reg1a)
+se_1a <- sqrt(diag(cov_1a))
+
+reg2a <- glm(blood_donation_fiveyears_exclu ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2,family = binomial(link = "logit"),  data= cross_sectionB)
+cov_2a <- vcovHC(reg2a)
+se_2a <- sqrt(diag(cov_2a))
+
+reg3a <- glm(blood_donation_fiveyears_exclu ~ age + age2 + female + education + health_r + patience_2018  + patience_2018_2,family = binomial(link = "logit"),  data= cross_sectionB)
+cov_3a <- vcovHC(reg3a)
+se_3a <- sqrt(diag(cov_3a))
+
+reg4a <- glm(blood_donation_fiveyears_exclu  ~ age + age2 + female + education + health_r +  risk_personal  + risk_personal2 +patience_2018  + patience_2018_2, family = binomial(link = "logit"), data= cross_sectionB)
+cov_4a <- vcovHC(reg4a)
+se_4a <- sqrt(diag(cov_4a))
+
+stargazer(reg1a, reg2a, reg3a, reg4a, type="html",
+          se=list(se_1a, se_2a, se_3a, se_4a), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Blood Donation"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years", "Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+
+
+### volunteer work
+```{r Table 3, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionC <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2019,
+                         select= c("volunteer_work_r", "risk_personal", 
+                                   "patience_2018", "patience_2018_2", 
+                                   "risk_personal2","age",  "age2", 
+                                   "female", "education", "health_r"))
+cross_sectionC <- na.omit(cross_sectionC)
+
+reg1 <- lm(volunteer_work_r  ~ age + age2 + female + education + health_r, data= cross_sectionC)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(volunteer_work_r ~ age + age2 + female + education +health_r + risk_personal  + risk_personal2, data= cross_sectionC)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(volunteer_work_r ~ age + age2 + female + education +health_r + patience_2018  + patience_2018_2, data= cross_sectionC)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(volunteer_work_r  ~ age + age2 + risk_personal  + risk_personal2 +patience_2018  + patience_2018_2+  female + education+ health_r, data= cross_sectionC)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3, reg4, type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Volunteer Work"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years","Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+```{r Table 3a, results ='asis', message=FALSE, warning=FALSE}
+reg1a <- glm(factor(volunteer_work_r)  ~ age + age2 + female + education + health_r, family = binomial(link = "probit"), data= cross_sectionC)
+cov_1a <- vcovHC(reg1a)
+se_1a <- sqrt(diag(cov_1a))
+
+reg2a <- glm(factor(volunteer_work_r) ~ age + age2 + female + education + health_r + risk_personal  + risk_personal2,family = binomial(link = "probit"),  data= cross_sectionC)
+cov_2a <- vcovHC(reg2a)
+se_2a <- sqrt(diag(cov_2a))
+
+reg3a <- glm(factor(volunteer_work_r) ~ age + age2 + female + education + health_r + patience_2018  + patience_2018_2,family = binomial(link = "probit"),  data= cross_sectionC)
+cov_3a <- vcovHC(reg3a)
+se_3a <- sqrt(diag(cov_3a))
+
+reg4a <- glm(factor(volunteer_work_r)  ~ age + age2 + female + education + health_r +  risk_personal  + risk_personal2 +patience_2018  + patience_2018_2, family = binomial(link = "probit"), data= cross_sectionC)
+cov_4a <- vcovHC(reg4a)
+se_4a <- sqrt(diag(cov_4a))
+
+stargazer(reg1a, reg2a, reg3a, reg4a, type="html",
+          se=list(se_1a, se_2a, se_3a, se_4a), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Volunteer Work"),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years", "Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+### ols
+```{r Table 1A, results ='asis', message=FALSE, warning=FALSE}
+reg1 <- lm(money_donated  ~ age + age2 + female + education + health_r +  risk_personal  + risk_personal2 +patience_2018  + patience_2018_2, data= cross_sectionA)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(blood_donation_fiveyears_exclu  ~ age + age2 + risk_personal  + risk_personal2 +patience_2018  + patience_2018_2+  female + education + health_r, data= cross_sectionB)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(volunteer_work_r  ~ age + age2 + risk_personal  + risk_personal2 +patience_2018  + patience_2018_2+  female + education+ health_r, data= cross_sectionC)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+stargazer(reg1, reg2, reg3,  type="html",
+          se=list(se_1, se_2, se_3), column.separate = c(1,1,1),
+          covariate.labels= c("Age", "Age Squared", "Female", "Education in years","Health Status", "Personal Risk", "Personal Risk Squared", "Patience", "Patience Squared"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+
+```
+
+
+## Regressions with Risk {.tabset}
+### 2020
+```{r Table 4, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionD <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2020,
+                         select= c("pid", "risk_personal", "hh_netincome",
+                                   "age", "age2", "female", "education", 
+                                   "net_income", "health_r", "marriage_status", 
+                                   "emp_status", "political_attitude_2019"))
+cross_sectionD <- na.omit(cross_sectionD)
+cross_sectionD$net_income[cross_sectionD$net_income == 0 ] <- 1
+cross_sectionD$hh_netincome[cross_sectionD$hh_netincome == 0 ] <- 1
+cross_sectionD$f_marriage <- relevel(factor(cross_sectionD$marriage_status), ref=1)
+# Full-Time Employment, Regular Part-Time Employment, Vocational Training,
+# Marginal, Irregular Part-Time Employment, Not Employed, Sheltered workshop
+cross_sectionD$f_emp_status <- relevel(factor(cross_sectionD$emp_status), ref=1)
+
+reg1 <- lm(risk_personal ~ age + age2, data= cross_sectionD)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(risk_personal ~ age + age2 + female, data= cross_sectionD)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(risk_personal ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude_2019 , data= cross_sectionD)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(risk_personal  ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude_2019 , data= cross_sectionD)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3,reg4,  type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1, 1, 1,1),
+          dep.var.labels= c("Personal Risk (2020)"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+### 2019
+```{r Table 5, results ='asis', message=FALSE, warning=FALSE}
+cross_sectionE <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2019,
+                         select= c("pid", "risk_personal","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude"))
+cross_sectionE <- na.omit(cross_sectionE)
+cross_sectionE$net_income[cross_sectionE$net_income == 0 ] <- 1
+cross_sectionE$hh_netincome[cross_sectionE$hh_netincome == 0 ] <- 1
+cross_sectionE$f_marriage <- relevel(factor(cross_sectionE$marriage_status), ref=1)
+cross_sectionE$f_emp_status <- relevel(factor(cross_sectionE$emp_status), ref=1)
+
+reg1 <- lm(risk_personal ~ age + age2,  data= cross_sectionE)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(risk_personal ~ age + age2 + female, data= cross_sectionE)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(risk_personal ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= cross_sectionE)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(risk_personal  ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= cross_sectionE)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3,reg4,  type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1, 1, 1,1),
+          dep.var.labels= c("Personal Risk (2019)"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+### 2014
+```{r}
+#finance
+risk_a <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_financial","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_a$net_income[risk_a$net_income == 0 ] <- 1
+risk_a$hh_netincome[risk_a$hh_netincome == 0 ] <- 1
+risk_a$f_marriage <- relevel(factor(risk_a$marriage_status), ref=1)
+risk_a$f_emp_status <- relevel(factor(risk_a$emp_status), ref=1)
+#health
+risk_b <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_health","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_b$net_income[risk_b$net_income == 0 ] <- 1
+risk_b$hh_netincome[risk_b$hh_netincome == 0 ] <- 1
+risk_b$f_marriage <- relevel(factor(risk_b$marriage_status), ref=1)
+risk_b$f_emp_status <- relevel(factor(risk_b$emp_status), ref=1)
+
+#driving
+risk_c <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_drive","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_c$net_income[risk_c$net_income == 0 ] <- 1
+risk_c$hh_netincome[risk_c$hh_netincome == 0 ] <- 1
+risk_c$f_marriage <- relevel(factor(risk_c$marriage_status), ref=1)
+risk_c$f_emp_status <- relevel(factor(risk_c$emp_status), ref=1)
+
+#leisure and sport
+risk_d <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_leisure_sport","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_d$net_income[risk_d$net_income == 0 ] <- 1
+risk_d$hh_netincome[risk_d$hh_netincome == 0 ] <- 1
+risk_d$f_marriage <- relevel(factor(risk_d$marriage_status), ref=1)
+risk_d$f_emp_status <- relevel(factor(risk_d$emp_status), ref=1)
+
+#job
+risk_e <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_job","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_e$net_income[risk_e$net_income == 0 ] <- 1
+risk_e$hh_netincome[risk_e$hh_netincome == 0 ] <- 1
+risk_e$f_marriage <- relevel(factor(risk_e$marriage_status), ref=1)
+risk_e$f_emp_status <- relevel(factor(risk_e$emp_status), ref=1)
+
+#trust
+risk_f <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2014,
+                         select= c("pid", "risk_trust","age","age2", "female", 
+                                   "education", "net_income", "hh_netincome", "health_r",
+                                   "marriage_status", "emp_status","political_attitude")) %>%
+  na.omit()
+risk_f$net_income[risk_f$net_income == 0 ] <- 1
+risk_f$hh_netincome[risk_f$hh_netincome == 0 ] <- 1
+risk_f$f_marriage <- relevel(factor(risk_f$marriage_status), ref=1)
+risk_f$f_emp_status <- relevel(factor(risk_f$emp_status), ref=1)
+
+```
+
+```{r Table 5a, results ='asis', message=FALSE, warning=FALSE}
+## run for log household
+reg1 <- lm(risk_financial ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_a)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(risk_health ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_b)
+cov_2 <- vcovHC(reg2)
+se_2<- sqrt(diag(cov_2))
+
+reg3 <- lm(risk_drive ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_c)
+cov_3 <- vcovHC(reg3)
+se_3<- sqrt(diag(cov_3))
+
+reg4 <- lm(risk_leisure_sport ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_d)
+cov_4 <- vcovHC(reg4)
+se_4<- sqrt(diag(cov_4))
+
+reg5 <- lm(risk_job ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_e)
+cov_5 <- vcovHC(reg5)
+se_5<- sqrt(diag(cov_5))
+
+reg6 <- lm(risk_trust ~ age + age2 + female + education + log(net_income) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_f)
+cov_6 <- vcovHC(reg6)
+se_6<- sqrt(diag(cov_6))
+
+stargazer(reg1, reg2, reg3,reg4, reg5, reg6,  type="html",
+          se=list(se_1, se_2, se_3, se_4,se_5,se_6), column.separate = c(1, 1, 1,1,1,1),
+          column.labels = c("Finance", "Health", "Driving", 
+                            "Leisure and Sport", "Job", "Trust"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+```{r Table 5b, results ='asis', message=FALSE, warning=FALSE}
+## run for log household
+reg1 <- lm(risk_financial ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_a)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(risk_health ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_b)
+cov_2 <- vcovHC(reg2)
+se_2<- sqrt(diag(cov_2))
+
+reg3 <- lm(risk_drive ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_c)
+cov_3 <- vcovHC(reg3)
+se_3<- sqrt(diag(cov_3))
+
+reg4 <- lm(risk_leisure_sport ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_d)
+cov_4 <- vcovHC(reg4)
+se_4<- sqrt(diag(cov_4))
+
+reg5 <- lm(risk_job ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_e)
+cov_5 <- vcovHC(reg5)
+se_5<- sqrt(diag(cov_5))
+
+reg6 <- lm(risk_trust ~ age + age2 + female + education + log(hh_netincome) + health_r +  f_emp_status + f_marriage + political_attitude , data= risk_f)
+cov_6 <- vcovHC(reg6)
+se_6<- sqrt(diag(cov_6))
+
+stargazer(reg1, reg2, reg3,reg4, reg5, reg6,  type="html",
+          se=list(se_1, se_2, se_3, se_4,se_5,se_6), column.separate = c(1, 1, 1,1,1,1),
+          column.labels = c("Finance", "Health", "Driving", 
+                            "Leisure and Sport", "Job", "Trust"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+## Statistics {.tabset}
+
+### 2020
+```{r}
+sample_stat2020 <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2020,
+                         select= c("risk_personal","age", "female",                
+                      "education", "net_income", "hh_netincome", "health_r",
+                      "marriage_status", "emp_status","political_attitude_2019", 
+                      "blood_donation_fiveyears_exclu","money_donated",
+                      "money_subscribe_amount","patience_2018"))
+
+#Creating dummies for emp_status
+sample_stat2020$fulltime_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$fulltime_emp[sample_stat2020$emp_status==1] <- 1 #Full time Employed(=1)
+sample_stat2020$re_parttime_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$re_parttime_emp[sample_stat2020$emp_status==2] <- 1 #Regular Part-time(=1)
+sample_stat2020$training_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$training_emp[sample_stat2020$emp_status==3] <- 1 #Vocational training(=1)
+sample_stat2020$irre_parttime_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$irre_parttime_emp[sample_stat2020$emp_status==4] <- 1 #Irregular Part-time(=1)
+sample_stat2020$no_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$no_emp[sample_stat2020$emp_status==5] <- 1 #Unemployed(=1)
+sample_stat2020$workshop_emp <- rep(0, nrow(sample_stat2020))
+sample_stat2020$workshop_emp[sample_stat2020$emp_status==6] <- 1 #Sheltered workshop(=1)
+
+#Creating dummies for marriage status
+sample_stat2020$single <- rep(0, nrow(sample_stat2020))
+sample_stat2020$single[sample_stat2020$marriage_status==1] <- 1 #Single(=1)
+sample_stat2020$married <- rep(0, nrow(sample_stat2020))
+sample_stat2020$married[sample_stat2020$marriage_status==2] <- 1 #Married(=1)
+sample_stat2020$separated <- rep(0, nrow(sample_stat2020))
+sample_stat2020$separated[sample_stat2020$marriage_status==3] <- 1 #Separated(=1)
+sample_stat2020$divorced <- rep(0, nrow(sample_stat2020))
+sample_stat2020$divorced[sample_stat2020$marriage_status==4] <- 1 #Divorced(=1)
+sample_stat2020$widowed <- rep(0, nrow(sample_stat2020))
+sample_stat2020$widowed[sample_stat2020$marriage_status==5] <- 1 #Widowed(=1)
+
+```
+
+```{r Table 6, results='asis', warning=FALSE, message=FALSE}
+df <- as.data.frame(sample_stat2020[c("age", "female", "education", "net_income", "hh_netincome", "health_r", "political_attitude_2019", "fulltime_emp","re_parttime_emp", "training_emp","irre_parttime_emp","no_emp","workshop_emp", "single", "married", "separated","divorced","widowed", "risk_personal", "patience_2018",  "money_donated", "money_subscribe_amount", "blood_donation_fiveyears_exclu")])
+stargazer(df,omit.summary.stat = c("p25", "p75"), median= TRUE, type = "html", covariate.labels=c("Age", "Female (=1)", "Education in Year", "Net Income in Euros", "Household Net Income in Euros", "Current State of Health (1=Very Bad,  5=Very Good)","Political Attitude (0=Completely Left, 10=Completely Right)", "Full Time Employed (=1)", "Regular Part-time Employed (=1)", "Training (=1)", "Irregular Part-time Employed (=1)", "Unemployed (=1)", "Workshop (=1)", "Single (=1)", "Married (=1)", "Non-Separated (=1)", "Divorced (=1)", "Widowed (=1)", "Personal Risk (0=Not at all, 10=Very risky)", "Personal Patience (0=Not at all, 10=Very patient)", "Subscribed Money (=1)", "Amount subscribed in Euros", "Blood donation in the last 5 years (=1)"), title="Summary statistics of 2020 Sample", align=TRUE, notes= "The table reports summary statistics (mean, standard deviation, median, minimum and maximum) of the 2010 SOEP sample. Refer text for details on variable definitions. Political Attitude is taken from 2009 and data on religion is from 2011 in the SOEP data since both of them have no observations in 2010. \textit{Being There} and \textit{Social Political} are from the 2008 sample since the number of observations for these variables was limited in 2010 (with 4,369 and 4,360 observations respectively) and are coded in reverse. All other variables are from the 2010 sample.", single.row = TRUE)
+```
+
+### 2019
+```{r}
+sample_stat2019 <- subset(dataSOEP_ageclean, dataSOEP_ageclean$syear==2019,
+                         select= c("risk_personal","age", "female",                
+                      "education", "net_income", "hh_netincome", "health_r",
+                      "marriage_status", "emp_status","political_attitude", 
+                      "volunteer_work_r", "patience_2018"))
+
+#Creating dummies for emp_status
+sample_stat2019$fulltime_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$fulltime_emp[sample_stat2019$emp_status==1] <- 1 #Full time Employed(=1)
+sample_stat2019$re_parttime_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$re_parttime_emp[sample_stat2019$emp_status==2] <- 1 #Regular Part-time(=1)
+sample_stat2019$training_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$training_emp[sample_stat2019$emp_status==3] <- 1 #Vocational training(=1)
+sample_stat2019$irre_parttime_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$irre_parttime_emp[sample_stat2019$emp_status==4] <- 1 #Irregular Part-time(=1)
+sample_stat2019$no_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$no_emp[sample_stat2019$emp_status==5] <- 1 #Unemployed(=1)
+sample_stat2019$workshop_emp <- rep(0, nrow(sample_stat2019))
+sample_stat2019$workshop_emp[sample_stat2019$emp_status==6] <- 1 #Sheltered workshop(=1)
+
+#Creating dummies for marriage status
+sample_stat2019$single <- rep(0, nrow(sample_stat2019))
+sample_stat2019$single[sample_stat2019$marriage_status==1] <- 1 #Single(=1)
+sample_stat2019$married <- rep(0, nrow(sample_stat2019))
+sample_stat2019$married[sample_stat2019$marriage_status==2] <- 1 #Married(=1)
+sample_stat2019$separated <- rep(0, nrow(sample_stat2019))
+sample_stat2019$separated[sample_stat2019$marriage_status==3] <- 1 #Separated(=1)
+sample_stat2019$divorced <- rep(0, nrow(sample_stat2019))
+sample_stat2019$divorced[sample_stat2019$marriage_status==4] <- 1 #Divorced(=1)
+sample_stat2019$widowed <- rep(0, nrow(sample_stat2019))
+sample_stat2019$widowed[sample_stat2019$marriage_status==5] <- 1 #Widowed(=1)
+
+```
+
+```{r Table 7, results='asis', warning=FALSE, message=FALSE}
+df <- as.data.frame(sample_stat2019[c("age", "female", "education", "net_income", "hh_netincome", "health_r", "political_attitude", "fulltime_emp","re_parttime_emp", "training_emp","irre_parttime_emp","no_emp","workshop_emp", "single", "married", "separated","divorced","widowed", "risk_personal", "patience_2018",  "volunteer_work_r")])
+stargazer(df,omit.summary.stat = c("p25", "p75"), median= TRUE, type = "html", covariate.labels=c("Age", "Female (=1)", "Education in Year", "Net Income in Euros", "Household Net Income in Euros", "Current State of Health (1=Very Bad,  5=Very Good)","Political Attitude (0=Completely Left, 10=Completely Right)", "Full Time Employed (=1)", "Regular Part-time Employed (=1)", "Training (=1)", "Irregular Part-time Employed (=1)", "Unemployed (=1)", "Workshop (=1)", "Single (=1)", "Married (=1)", "Non-Separated (=1)", "Divorced (=1)", "Widowed (=1)", "Personal Risk (0=Not at all, 10=Very risky)", "Personal Patience (0=Not at all, 10=Very patient)", "Volunteer Work (1=Never, 5=Daily)"), title="Summary statistics of 2019 Sample", align=TRUE, notes= "The table reports summary statistics( mean, standard deviation, median, minimum and maximum) of 2019 SOEP data.", single.row = TRUE)
+```
+
+
+## GPS dataset
+```{r echo=T, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+GPSdata <- read_dta("data/GPS_dataset_individual_level/individual_new.dta")
+risk_data <- subset(GPSdata, select = c("risktaking", "gender","age"))
+risk_data <- na.omit(risk_data)
+risk_data$age[risk_data$age >=95] <- 95
+risk_data$age[risk_data$age <=18] <- 18
+```
+```{r}
+#sort by age and calculate mean 
+risk_data_new <- risk_data %>%
+  group_by(age) %>%
+  summarise(mean_risktaking=mean(risktaking),
+            N    = length(risktaking),
+            sd   = sd(risktaking),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+risk_data_sex <- risk_data %>%
+  group_by(age, gender) %>%
+  summarise(mean_risktaking=mean(risktaking),
+            N    = length(risktaking),
+            sd   = sd(risktaking),
+            se   = sd / sqrt(N),
+            .groups = 'drop')
+
+x <- ggplot(data=risk_data_new, aes(x=age, y=mean_risktaking)) + 
+  geom_errorbar(aes(ymin=mean_risktaking-se, ymax=mean_risktaking+se),color='red') +
+  geom_point(color='blue') +
+  ylab("Personal Willingness to Take Risks") +
+  theme_light() +
+  scale_x_continuous("Age", breaks = seq(20, 95, by = 5))
+x
+
+x <- ggplot(data = risk_data_sex, aes(x=age, y=mean_risktaking, 
+                                  color=factor(gender), group = factor(gender))) +
+  geom_errorbar(aes(ymin=mean_risktaking-se, ymax=mean_risktaking+se)) +
+  geom_line() +
+  geom_point() +
+  ylab("Personal Willingness to Take Risks") +
+  theme_light() +
+  scale_color_manual(name = "gender", labels = c("male", "female"),
+                     values = c("blue", "red")) +
+  scale_x_continuous("Age", breaks = seq(20, 95, by = 5))
+x
+```
+
+```{r echo=T, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+reg_data <- subset(GPSdata, select = c("risktaking", "gender","age", "altruism", "patience", "country"))
+reg_data <- reg_data %>% 
+  mutate(age2 = age^2,
+         risktaking2 = risktaking^2,
+         patience2 = patience^2)
+reg_data <- na.omit(reg_data)
+```
+
+```{r Table 8, results ='asis', message=FALSE, warning=FALSE}
+reg1 <- lm(altruism  ~ age + age2 + gender, data= reg_data)
+cov_1 <- vcovHC(reg1)
+se_1 <- sqrt(diag(cov_1))
+
+reg2 <- lm(altruism ~ age + age2 + gender + risktaking  + risktaking2,  data= reg_data)
+cov_2 <- vcovHC(reg2)
+se_2 <- sqrt(diag(cov_2))
+
+reg3 <- lm(altruism ~ age + age2 + gender  + patience  + patience2, data= reg_data)
+cov_3 <- vcovHC(reg3)
+se_3 <- sqrt(diag(cov_3))
+
+reg4 <- lm(altruism  ~ age + age2 + gender + risktaking + risktaking2 +patience  + patience2,  data= reg_data)
+cov_4 <- vcovHC(reg4)
+se_4 <- sqrt(diag(cov_4))
+
+stargazer(reg1, reg2, reg3, reg4, type="html",
+          se=list(se_1, se_2, se_3, se_4), column.separate = c(1,1,1,1),
+          dep.var.labels= c("Altruism"),
+          notes.align = "l",
+          notes = "Robust standard errors are in parentheses.")
+```
+
+
+
+
+## Hypotheses
+1. Risk tolerance decreases during the life course
+2. Men have higher risk tolerance than women
+3. Risk can evaluate altruistic behaviors
+4. Based on hypothesis 3, risk preference and patience have non-linear relation with  altruistic behaviors during the whole life course
+
